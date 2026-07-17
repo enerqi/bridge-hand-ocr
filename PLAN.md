@@ -8,6 +8,15 @@ per-session updates (latest first). Pair with `README.md` (status detail) and
 
 ## Next step (start here)
 
+**IntoBridge analysis popup (4-colour ROWS) — DONE (session 12), 10/12 hands.**
+`intobridge-4-hand-{small,small-2}` read **4/4 exact + validate**; `-cramped` 2/4.
+See session 12 in the progress log for the full diff. **Next item for cramped:**
+row-anchor `rows._box_rows` to the anchor's known 4 `rows_y` centres to reject the
+player-name banner + DD bleed and merge shattered fragments (deferred — bigger
+`_box_rows` refactor, cross-source regression risk). Env/deps fixes + a CARDS
+seat-badge duplicate guard (Bug B, `intobridge-2-hand-large-2`) also landed. All
+uncommitted; commit plan in the session-12 log.
+
 **IntoBridge large — DONE (session 6).** `intobridge-4-hand-large` reads **4/4
 exact + validates**, `intobridge-2-hand-large` E/W exact. Suit from colour
 (4-colour deck), seats from the N/E/S/W badges (rotated: the top hand is West),
@@ -54,6 +63,70 @@ See §4 (Mode CARDS) and §3.5-3.6 (ROWS print / replay) below for the full list
 ---
 
 ## Progress log
+
+- **2026-07-17 (session 12).** IntoBridge **analysis-popup** support + env/deps
+  fixes + a CARDS seat-badge bug. Started from three failing `just` recipes; the
+  user then supplied two new fixtures (`intobridge-2-hand-large-2`,
+  `intobridge-4-hand-small-2`). **91 tests pass, ruff+ty clean.** Uncommitted.
+  - **Reclassification (the key insight).** `intobridge-4-hand-{small,small-2,
+    cramped}` are NOT cropped CARDS grids (as sessions 6/7 assumed) — they are
+    IntoBridge's **analysis popup**: ROWS text-diagrams (`♠83 / ♥107 / …`) in a
+    compass layout, rendered with a **4-colour deck** (♠blue ♥red ♦orange ♣green)
+    at ~500px. Session 7's `detect_mode` fix had them route CARDS and soft-fail;
+    they should be ROWS.
+  - **4-colour anchor** (`anchor.py`). The universal ROWS anchor keyed on a
+    black,red,red,black quadruple — but IntoBridge's ♠/♣ are blue/green, not
+    black, so it found nothing. Added a 4-colour path: locate hands as four
+    *saturated-colour* suit glyphs stacked S,H,D,C, tried when the 2-colour path is
+    empty (zero regression — 2-colour sources return first). `find_hand_stacks_deck`
+    reports the deck; `_dedupe_stacks` collapses the 4-colour scan's duplicate
+    pairings. `detect_mode` now routes all three popups ROWS (no stacks→0 problem).
+  - **Compass false-positive gate** (`rows._compass_bbox`). A popup's central green
+    ♣ symbols faked a compass (small-2). Added a green-fill-density check
+    (`_COMPASS_FILL_MIN=0.35`; solid compass ~0.55, scatter ~0.15) so it falls
+    through to the anchor.
+  - **IntoBridge ROWS atlas** + selection. Built `atlas/intobridge` rank glyphs
+    from small+small-2 (labelled in `build_atlas.py`), selected in `read_rows` when
+    the anchor reports the 4-colour deck (`INTOBRIDGE_ATLAS`). `_seat_boxes` now
+    returns `(boxes, source, deck)`.
+  - **Missing-suit + neighbour-bleed** (`rows._box_rows`, gated to 4-colour). (1)
+    keep a lone rank when the suit column is empty (IntoBridge's orange ♦ often
+    fails to threshold) — else a single-card suit reads empty. (2) tighter bleed gap
+    (`gap_mult=1.5` vs 2.5) in x_runs + keep_main_run — the popup's central DD-table
+    sits ~2 glyphs right of a hand, so its bleed slipped under the default gap and
+    added phantom glyphs.
+  - Result: **`intobridge-4-hand-small` and `-small-2` read 4/4 exact + validate**
+    (pinned, `test_intobridge_popup_reads_exactly`). `-cramped` still 2/4 (E,W) —
+    see below.
+  - **Bug B — CARDS seat-badge collision** (`segment.read_seat_badges`).
+    `intobridge-2-hand-large-2` (real play view, N/S face-up, E/W face-down) misread
+    to one hand: its seat badges all matched the same letter, collapsing both
+    clusters onto one seat. Fix: reject a badge read that yields duplicate seats,
+    keep the position-based seats. Reads 4/4 correct (pinned,
+    `test_intobridge_two_hand_ns_faceup`). 4-hand IntoBridge (badges work there)
+    unaffected.
+  - **Env/deps.** opencv pinned `>=4.10,<4.12` (5.0.x's gapi shim crashes on import
+    on Python 3.14; 4.12 drags a numpy with no cp314 wheel); `docopt`→`docopt-ng`
+    (invalid-regex warnings); ty fixes (np.array inRange bounds, `Hand|None`
+    guards). Deps **flipped**: opencv/numpy/pillow are now core `dependencies` (not a
+    `vision` extra) — reading a diagram IS the tool; only `ocr`/paddleocr stays an
+    extra (no cp314 wheel). Dropped `sync`/`sync-vision` recipes (uv auto-syncs),
+    kept `sync-ocr`; PEP-723 header in `hand-ocr.py` synced.
+  - **cramped — still 2/4, the hard nut.** Its 469px box has three compounding
+    problems: the blue player-name banner ("cupcakethief") overlaps row 0; DD-table
+    N/S/W/E labels bleed on the right; and ranks physically **shatter** into h7-10
+    sub-glyph fragments. *Tried + fully reverted:* a dark-ink threshold (IntoBridge
+    ranks are dark navy V~45-80 vs bright coloured suit/name V~150+) to drop the
+    name+suits — failed, the navy ranks and some suit glyphs overlap in brightness,
+    it fragmented ranks and regressed small/small-2 to 14-15-card over-reads. Also
+    reverted: 2x upscaling (no help). **Proposed real fix (not done):** row-anchor
+    `_box_rows` to the anchor's known 4 `rows_y` centres — assign components to the
+    nearest known suit row, reject outliers (name above row 0, DD bleed at far x),
+    merge fragments per row. Bigger `_box_rows` refactor, cross-source regression
+    risk; do deliberately.
+  - **Commit plan (when ready):** split into (1) env/deps; (2) Bug A
+    anchor+atlas+bleed+routing; (3) Bug B seat guard. New fixtures + `atlas/intobridge`
+    PNGs are shipped artifacts — commit them.
 
 - **2026-07-16 (session 11).** Multi-render atlases + the resolution lever proven,
   driven by fixtures the user supplied mid-session (three high-res "zoomed" prints

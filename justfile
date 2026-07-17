@@ -1,4 +1,4 @@
-set windows-shell := ["nu", "-c"]
+set windows-shell := ["powershell", "-NoLogo", "-Command"]
 set shell := ["bash", "-c"]
 
 # hand-ocr: bridge hand-diagram image -> PBN/LIN. Managed by astral uv (its own
