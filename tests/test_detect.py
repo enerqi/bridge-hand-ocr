@@ -36,11 +36,13 @@ def _mode(name: str) -> Mode:
         ("realbridge-replay-1.png", Mode.ROWS),  # baize + big-font board (vul badges)
         ("realbridge-replay-2-nonvul.png", Mode.ROWS),  # baize + big-font board
         ("print-3x4-format.png", Mode.ROWS),
+        # IntoBridge analysis popup: text-row hands (4-colour deck), not a card
+        # view -- located by the 4-colour suit-quadruple anchor.
+        ("intobridge-4-hand-cramped.png", Mode.ROWS),
+        ("intobridge-4-hand-small.png", Mode.ROWS),
         # CARDS play views
         ("bridge-base-4-hand-large.png", Mode.CARDS),  # BBO baize + white cards
         ("intobridge-2-hand-large.png", Mode.CARDS),  # IntoBridge baize + white cards
-        ("intobridge-4-hand-cramped.png", Mode.CARDS),  # cropped grid, no baize, no stacks
-        ("intobridge-4-hand-small.png", Mode.CARDS),
     ],
 )
 def test_mode_routing(name, mode):

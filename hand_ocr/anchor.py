@@ -13,6 +13,12 @@ prints a vertical **black, red, red, black** quadruple of suit glyphs at a
 consistent left edge with a regular row pitch, ranks running off to the right.
 That colour quadruple is the anchor: no per-source template, no compass.
 
+Two decks are handled. Most sources are 2-colour (the B,R,R,B quadruple above).
+IntoBridge's analysis popup is a 4-colour deck -- ♠blue, ♦orange, ♣green -- so its
+♠/♣ are not black and no B,R,R,B quadruple forms. There, all four suit glyphs are
+instead *saturated colour* (the rank digits are dark), so a hand is four saturated
+glyphs stacked S,H,D,C; that 4-colour path is tried when the 2-colour one is empty.
+
 Detection:
 
 1. Colour-mask the image into red ink (heart/diamond glyphs, plus stray red
@@ -76,6 +82,13 @@ _Y_TOL = 0.6  # black-neighbour row-centre tolerance, as a multiple of the pitch
 # table, pitch ~0.5x the hands'). Uniform multi-board pages are unaffected.
 _PITCH_CLUSTER_LO, _PITCH_CLUSTER_HI = 0.7, 1.4
 
+# 4-colour-deck anchor (IntoBridge analysis popup): its ♠ is blue and ♣ green, not
+# black, so the B,R,R,B quadruple above never forms and the 2-colour anchor finds
+# nothing. But all four suit symbols are *saturated colour* (unlike the dark rank
+# digits), so a hand is instead four saturated glyphs stacked S,H,D,C at a common
+# left edge. This mask is any hue at/above this saturation and value.
+_SUIT_SAT_MIN, _SUIT_VAL_MIN = 80, 60
+
 
 @dataclass
 class HandStack:
@@ -111,13 +124,17 @@ def _colour_masks(img_bgr: Any) -> tuple[Any, Any]:
     """(red_mask, black_mask) for suit-glyph ink. Red is the two hue wraps at
     good saturation; black is dark low-saturation ink."""
     import cv2
+    import numpy as np
+
+    def hsv_bounds(*v: int) -> Any:  # uint8 array; opencv stubs reject bare tuples
+        return np.array(v, dtype=np.uint8)
 
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
     red = cv2.bitwise_or(
-        cv2.inRange(hsv, (0, 90, 60), (12, 255, 255)),
-        cv2.inRange(hsv, (168, 90, 60), (180, 255, 255)),
+        cv2.inRange(hsv, hsv_bounds(0, 90, 60), hsv_bounds(12, 255, 255)),
+        cv2.inRange(hsv, hsv_bounds(168, 90, 60), hsv_bounds(180, 255, 255)),
     )
-    black = cv2.inRange(hsv, (0, 0, 0), (180, 90, 110))
+    black = cv2.inRange(hsv, hsv_bounds(0, 0, 0), hsv_bounds(180, 90, 110))
     return red, black
 
 
@@ -134,36 +151,49 @@ def _glyph_components(mask: Any) -> list[_Comp]:
     return out
 
 
-def find_hand_stacks(img_bgr: Any) -> list[HandStack]:
-    """Locate every ROWS hand in the image by its B,R,R,B suit-glyph quadruple.
-
-    Source-independent (no compass). Returns one `HandStack` per hand found, in
-    no particular order -- callers group them into boards / assign seats by
-    geometry. Empty list if no colour quadruple is present (e.g. a CARDS view)."""
+def _suit_colour_mask(img_bgr: Any) -> Any:
+    """Saturated coloured ink of any hue -- the four suit symbols of a 4-colour
+    deck (♠blue ♥red ♦orange ♣green). Dark, unsaturated rank digits drop out, so
+    (unlike the black mask) this isolates the suit glyphs alone."""
+    import cv2
     import numpy as np
 
-    red_mask, black_mask = _colour_masks(img_bgr)
-    reds = _glyph_components(red_mask)
-    blacks = _glyph_components(black_mask)
-    if not reds:
-        return []
+    def hsv_bounds(*v: int) -> Any:  # uint8 array; opencv stubs reject bare tuples
+        return np.array(v, dtype=np.uint8)
 
+    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    return cv2.inRange(hsv, hsv_bounds(0, _SUIT_SAT_MIN, _SUIT_VAL_MIN), hsv_bounds(180, 255, 255))
+
+
+def _scan_stacks(pairs: list[_Comp], neighbours: list[_Comp], *, require_both: bool) -> list[HandStack]:
+    """Core anchor scan: find every hand as a vertical suit quadruple.
+
+    `pairs` supplies the candidate heart-over-diamond middle (the colour that only
+    marks suit glyphs, never rank digits); `neighbours` the spade-above / club-
+    below confirmation. `require_both` demands both flanks (the 4-colour deck,
+    where all four glyphs share the `pairs` set, so both flanks are real and
+    demanding both avoids counting a hand once per adjacent pairing); the 2-colour
+    deck needs only one flank (the other may be a void's absent symbol)."""
+    import numpy as np
+
+    if not pairs:
+        return []
     # dominant-scale filter: discard components far below the big repeated hand
     # glyphs (small UI text), so the median scale below reflects the hands only.
-    min_h = _SCALE_KEEP * float(np.percentile([c[3] for c in reds], 75))
-    reds = [c for c in reds if c[3] >= min_h]
-    blacks = [c for c in blacks if c[3] >= min_h]
-    if not reds:
+    min_h = _SCALE_KEEP * float(np.percentile([c[3] for c in pairs], 75))
+    pairs = [c for c in pairs if c[3] >= min_h]
+    neighbours = [c for c in neighbours if c[3] >= min_h]
+    if not pairs:
         return []
 
-    med_h = float(np.median([c[3] for c in reds]))
+    med_h = float(np.median([c[3] for c in pairs]))
     pitch_lo, pitch_hi = med_h * _PITCH_LO, med_h * _PITCH_HI
     x_tol = med_h * _X_TOL
 
     stacks: list[HandStack] = []
     seen: set[tuple[int, int]] = set()
-    for heart in reds:
-        for diamond in reds:
+    for heart in pairs:
+        for diamond in pairs:
             if heart is diamond:
                 continue
             pitch = diamond[5] - heart[5]  # heart above diamond
@@ -172,20 +202,72 @@ def find_hand_stacks(img_bgr: Any) -> list[HandStack]:
             left = heart[0]
             spade_y, club_y = heart[5] - pitch, diamond[5] + pitch
             y_tol = pitch * _Y_TOL
-            has_spade = any(abs(c[5] - spade_y) <= y_tol and abs(c[0] - left) <= x_tol for c in blacks)
-            has_club = any(abs(c[5] - club_y) <= y_tol and abs(c[0] - left) <= x_tol for c in blacks)
-            if not (has_spade or has_club):
-                continue  # stray red pair (contract text / DD header), not a hand
+            has_spade = any(abs(c[5] - spade_y) <= y_tol and abs(c[0] - left) <= x_tol for c in neighbours)
+            has_club = any(abs(c[5] - club_y) <= y_tol and abs(c[0] - left) <= x_tol for c in neighbours)
+            ok = (has_spade and has_club) if require_both else (has_spade or has_club)
+            if not ok:
+                continue  # stray pair (contract text / DD header / off-middle), not a hand
             key = (round(left / 8), round(heart[5] / 8))
             if key in seen:
                 continue
             seen.add(key)
-            stacks.append(
-                HandStack(left=left, rows_y=(spade_y, heart[5], diamond[5], club_y), pitch=pitch)
-            )
+            stacks.append(HandStack(left=left, rows_y=(spade_y, heart[5], diamond[5], club_y), pitch=pitch))
     if not stacks:
         return stacks
     # pitch-consistency: a board's hands share one row pitch; drop any off-scale
     # false stack (e.g. replay's smaller-pitch bidding table).
     med_pitch = float(np.median([s.pitch for s in stacks]))
-    return [s for s in stacks if _PITCH_CLUSTER_LO * med_pitch <= s.pitch <= _PITCH_CLUSTER_HI * med_pitch]
+    stacks = [s for s in stacks if _PITCH_CLUSTER_LO * med_pitch <= s.pitch <= _PITCH_CLUSTER_HI * med_pitch]
+    return _dedupe_stacks(stacks, med_pitch)
+
+
+def _dedupe_stacks(stacks: list[HandStack], med_pitch: float) -> list[HandStack]:
+    """Collapse near-duplicate stacks of one hand into one.
+
+    The 4-colour scan finds several valid heart/diamond pairings per hand (all
+    four suit glyphs are candidates, and their differing shapes jitter the left
+    edge past the coarse key dedupe), yielding 2-3 overlapping stacks per hand.
+    Two stacks are the same hand when their left edge and heart row nearly
+    coincide; distinct hands sit many pitches apart, so this never merges them."""
+    kept: list[HandStack] = []
+    for s in sorted(stacks, key=lambda s: (s.centre[1], s.centre[0])):
+        dup = any(
+            abs(s.left - k.left) <= 1.5 * med_pitch and abs(s.rows_y[1] - k.rows_y[1]) <= 2.0 * med_pitch for k in kept
+        )
+        if not dup:
+            kept.append(s)
+    return kept
+
+
+def find_hand_stacks(img_bgr: Any) -> list[HandStack]:
+    """Locate every ROWS hand in the image by its suit-glyph quadruple.
+
+    Source-independent (no compass). Returns one `HandStack` per hand found, in
+    no particular order -- callers group them into boards / assign seats by
+    geometry. Empty list if no quadruple is present (e.g. a CARDS view).
+
+    Two decks: the common 2-colour case (♥♦ red, ♠♣ black) anchors on the red
+    pair confirmed by a black flank. When that finds nothing, a 4-colour deck
+    (IntoBridge: ♠blue ♦orange ♣green) is tried, where all four suit glyphs are
+    saturated colour -- pairs and flanks come from one saturated-colour mask and a
+    full S,H,D,C stack is required."""
+    return find_hand_stacks_deck(img_bgr)[0]
+
+
+# which deck the anchor matched -- lets the recogniser pick the matching atlas
+# ("2colour" -> RealBridge/print render; "4colour" -> IntoBridge popup).
+Deck = str
+
+
+def find_hand_stacks_deck(img_bgr: Any) -> tuple[list[HandStack], Deck]:
+    """`find_hand_stacks` plus which deck matched ("2colour" | "4colour").
+
+    Same detection, but reports the deck so the caller can select the render's
+    atlas. "4colour" only when the 2-colour anchor was empty and the saturated-
+    colour path found the hands (IntoBridge's analysis popup)."""
+    red_mask, black_mask = _colour_masks(img_bgr)
+    stacks = _scan_stacks(_glyph_components(red_mask), _glyph_components(black_mask), require_both=False)
+    if stacks:
+        return stacks, "2colour"
+    coloured = _glyph_components(_suit_colour_mask(img_bgr))
+    return _scan_stacks(coloured, coloured, require_both=True), "4colour"

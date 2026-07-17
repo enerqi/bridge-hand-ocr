@@ -102,7 +102,9 @@ def test_print_grid_board1_reads_exactly(seat, expected):
     img = cv2.imread(str(FIXTURES / "print-3x4-format.png"))
     board1 = split_tiles(img)[0]  # first cell, reading order
     deal = read_rows(board1.image, atlas_name=board1.atlas)
-    assert deal.hands[seat].to_pbn() == expected
+    hand = deal.hands[seat]
+    assert hand is not None
+    assert hand.to_pbn() == expected
 
 
 def test_print_grid_valid_board_floor():

@@ -76,6 +76,20 @@ LABELLED_BOARDS = {
         "E": ["62", "Q72", "AKJ653", "84"],
         "S": ["KJ95", "10", "842", "J6532"],
     },
+    # IntoBridge analysis popup (4-colour deck; suit-quadruple anchor, ten "10",
+    # void = ""). Seats by compass geometry: N top, S bottom, W left, E right.
+    "intobridge-4-hand-small": {
+        "N": ["10653", "AJ8", "8", "87632"],
+        "W": ["J98", "K64", "AQ1053", "AK"],
+        "E": ["KQ74", "753", "KJ962", "4"],
+        "S": ["A2", "Q1092", "74", "QJ1095"],
+    },
+    "intobridge-4-hand-small-2": {
+        "N": ["83", "107", "AQJ875", "J109"],
+        "W": ["9", "96543", "103", "AK432"],
+        "E": ["AKQ1072", "K", "4", "Q8765"],
+        "S": ["J654", "AQJ82", "K962", ""],
+    },
 }
 
 

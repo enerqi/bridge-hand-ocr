@@ -99,9 +99,7 @@ def _frame_tiles(image: Any) -> list[Tile]:
     kept: list[tuple[int, int, int, int]] = []
     for r in rects:
         cx, cy = r[0] + r[2] / 2, r[1] + r[3] / 2
-        if not any(
-            abs(cx - (k[0] + k[2] / 2)) < 0.2 * r[2] and abs(cy - (k[1] + k[3] / 2)) < 0.2 * r[3] for k in kept
-        ):
+        if not any(abs(cx - (k[0] + k[2] / 2)) < 0.2 * r[2] and abs(cy - (k[1] + k[3] / 2)) < 0.2 * r[3] for k in kept):
             kept.append(r)
     if len(kept) < _FRAME_MIN_COUNT:
         return []

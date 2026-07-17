@@ -50,7 +50,13 @@ REPLAY_ATLAS = "realbridge-replay"
 # needs its own same-render atlas; read_rows picks by measured glyph height.
 PRINT_ATLAS = "print"
 PRINT_ZOOMED_ATLAS = "print-zoomed"
+# IntoBridge's analysis popup is also anchor-located (no compass) but is a
+# 4-colour deck with its own font; picked when the anchor reports that deck.
+INTOBRIDGE_ATLAS = "intobridge"
 _PRINT_ZOOM_MIN_H = 16.0  # median glyph height at/above which the zoomed atlas wins
+# min green-fill ratio inside the compass bbox: a solid compass ~0.55, a central
+# scatter of green suit glyphs (IntoBridge popup) ~0.15. Separates the two.
+_COMPASS_FILL_MIN = 0.35
 
 # component filters: ignore specks and thin noise when splitting a row into glyphs
 _MIN_AREA, _MIN_W, _MIN_H = 10, 3, 6
@@ -63,11 +69,15 @@ def compass_mask(img_bgr: Any) -> Any:
     in the hands also match red, but they are filtered out by area/centrality
     wherever this mask is used."""
     import cv2
+    import numpy as np
+
+    def hsv_bounds(*v: int) -> Any:  # uint8 array; opencv stubs reject bare tuples
+        return np.array(v, dtype=np.uint8)
 
     hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
-    green = cv2.inRange(hsv, (35, 60, 40), (90, 255, 200))
-    red1 = cv2.inRange(hsv, (0, 80, 60), (10, 255, 255))
-    red2 = cv2.inRange(hsv, (170, 80, 60), (180, 255, 255))
+    green = cv2.inRange(hsv, hsv_bounds(35, 60, 40), hsv_bounds(90, 255, 200))
+    red1 = cv2.inRange(hsv, hsv_bounds(0, 80, 60), hsv_bounds(10, 255, 255))
+    red2 = cv2.inRange(hsv, hsv_bounds(170, 80, 60), hsv_bounds(180, 255, 255))
     return cv2.bitwise_or(cv2.bitwise_or(green, red1), red2)
 
 
@@ -102,6 +112,12 @@ def _compass_bbox(img_bgr: Any) -> tuple[int, int, int, int]:
     # reject it so we fall through to the suit-quadruple anchor.
     if (maxx - minx) > 0.5 * w or (maxy - miny) > 0.5 * h:
         raise RuntimeError("central green region too large to be a compass")
+    # A real compass is a SOLID green square (fill ~0.55); a scatter of green suit
+    # glyphs that happens to cluster centrally -- e.g. an IntoBridge 4-colour popup,
+    # whose ♣ symbols are green -- is sparse (~0.15). Reject the sparse case so it
+    # falls through to the suit-quadruple anchor instead of reading garbage boxes.
+    if float((mask[miny:maxy, minx:maxx] > 0).mean()) < _COMPASS_FILL_MIN:
+        raise RuntimeError("central green region too sparse to be a compass")
     return minx, miny, maxx, maxy
 
 
@@ -160,19 +176,21 @@ def _hand_boxes_from_stacks(stacks: list[Any], img_w: int) -> dict[str, tuple[in
     return boxes
 
 
-def _seat_boxes(img_bgr: Any) -> tuple[dict[str, tuple[int, int, int, int]], str]:
-    """Four hand boxes plus which anchor produced them ("compass" | "anchor").
+def _seat_boxes(img_bgr: Any) -> tuple[dict[str, tuple[int, int, int, int]], str, str]:
+    """Four hand boxes, the anchor that produced them ("compass" | "anchor"), and
+    the suit deck ("2colour" | "4colour"; "" for the compass path).
 
     Tries the BridgeWebs green/red compass first (the verified fast path that
     also supplies vulnerability metadata); on its absence falls back to the
-    source-independent suit-quadruple anchor. The source tag lets the caller
-    pick the matching recognition atlas."""
+    source-independent suit-quadruple anchor. The source and deck tags let the
+    caller pick the matching recognition atlas."""
     try:
-        return _hand_boxes(_compass_bbox(img_bgr)), "compass"
+        return _hand_boxes(_compass_bbox(img_bgr)), "compass", ""
     except RuntimeError:
-        from .anchor import find_hand_stacks
+        from .anchor import find_hand_stacks_deck
 
-        return _hand_boxes_from_stacks(find_hand_stacks(img_bgr), img_bgr.shape[1]), "anchor"
+        stacks, deck = find_hand_stacks_deck(img_bgr)
+        return _hand_boxes_from_stacks(stacks, img_bgr.shape[1]), "anchor", deck
 
 
 def _cluster_rows(centres_y: list[float], gap: float) -> list[list[int]]:
@@ -236,8 +254,14 @@ def _maybe_split(box: tuple[int, int, int, int], binimg: Any, glyph_w: float) ->
     return _split_box(box, cuts)
 
 
-def _box_rows(box_gray: Any) -> list[list[Any]]:
+def _box_rows(box_gray: Any, allow_missing_suit: bool = False) -> list[list[Any]]:
     """A hand-box crop -> up to 4 rows of normalised rank-glyph images.
+
+    `allow_missing_suit` keeps a row's leftmost component when it sits past the
+    suit column (the suit symbol did not threshold, so the leftmost is really the
+    first rank). Only IntoBridge's 4-colour deck needs it -- its orange ♦ symbol
+    sometimes drops out; other decks always render the suit glyph, and enabling it
+    there would mis-keep a genuine suit symbol, so it defaults off.
 
     Connected components over the WHOLE box (not per-band), then cluster the
     components into rows by their y-centre; within each row drop the leftmost
@@ -331,6 +355,13 @@ def _box_rows(box_gray: Any) -> list[list[Any]]:
     lead_ws = [row[0][2] for row in ordered_rows if row]
     suit_w = float(np.median(lead_ws)) if lead_ws else glyph_w * 1.4
     lone_suit_max = suit_w * 1.45
+    # The suit symbols share a left edge (the leftmost column across rows); ranks
+    # start ~a glyph to its right. If a row's own leftmost sits at that suit column
+    # it is the suit symbol (drop it); if it sits further right the suit symbol is
+    # absent (e.g. IntoBridge's orange ♦ that did not threshold) and the leftmost
+    # is really the first rank -- keep it, else a single-card suit row reads empty.
+    lead_xs = [row[0][0] for row in ordered_rows if row]
+    suit_col_x = min(lead_xs) if lead_xs else 0
 
     rows: list[list[Any]] = []
     for ordered in ordered_rows:
@@ -341,8 +372,13 @@ def _box_rows(box_gray: Any) -> list[list[Any]]:
         # lone glyph to drop; if it is wider the suit has merged with the first
         # rank(s) (same-colour black touching) -- cut the suit off and keep the rest.
         fx, fy, fw, fh, _ = ordered[0]
-        if fw <= lone_suit_max:
+        if allow_missing_suit and fx > suit_col_x + suit_w:
+            # leftmost sits a full suit-width past the suit column -> the suit symbol
+            # is absent (did not threshold) and this is really the first rank; keep it
             rank_boxes: list[tuple[int, int, int, int]] = []
+            rank_boxes.extend(_maybe_split((fx, fy, fw, fh), binimg, glyph_w))
+        elif fw <= lone_suit_max:
+            rank_boxes = []
         else:
             col = _col_ink(binimg, (fx, fy, fw, fh))
             lo, hi = int(suit_w * 0.7), min(fw - 2, int(suit_w * 1.6))
@@ -370,7 +406,9 @@ def _box_rows(box_gray: Any) -> list[list[Any]]:
     return kept[:4] + [[]] * (4 - len(kept))
 
 
-def _glyphs_from_boxes(gray: Any, boxes: dict[str, tuple[int, int, int, int]]) -> dict[str, list[list[Any]]]:
+def _glyphs_from_boxes(
+    gray: Any, boxes: dict[str, tuple[int, int, int, int]], allow_missing_suit: bool = False
+) -> dict[str, list[list[Any]]]:
     """seat box -> 4 rows of normalised rank-glyph images, per seat."""
     ih, iw = gray.shape[:2]
     out: dict[str, list[list[Any]]] = {}
@@ -380,7 +418,7 @@ def _glyphs_from_boxes(gray: Any, boxes: dict[str, tuple[int, int, int, int]]) -
         x0, y0 = max(0, x0), max(0, y0)
         x1, y1 = min(iw, x1), min(ih, y1)
         box = gray[y0:y1, x0:x1]
-        out[seat] = [[], [], [], []] if box.size == 0 else _box_rows(box)
+        out[seat] = [[], [], [], []] if box.size == 0 else _box_rows(box, allow_missing_suit)
     return out
 
 
@@ -415,8 +453,8 @@ def hand_row_glyphs(img_bgr: Any) -> dict[str, list[list[Any]]]:
     compass anchor when present, else the suit-quadruple anchor."""
     import cv2
 
-    boxes, _ = _seat_boxes(img_bgr)
-    return _glyphs_from_boxes(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY), boxes)
+    boxes, _, deck = _seat_boxes(img_bgr)
+    return _glyphs_from_boxes(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY), boxes, allow_missing_suit=deck == "4colour")
 
 
 def read_rows(img_bgr: Any, atlas: Any = None, atlas_name: str | None = None) -> Deal:
@@ -432,7 +470,7 @@ def read_rows(img_bgr: Any, atlas: Any = None, atlas_name: str | None = None) ->
 
     from .atlas import Atlas
 
-    boxes, source = _seat_boxes(img_bgr)
+    boxes, source, deck = _seat_boxes(img_bgr)
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     # RealBridge *replay*: anchor-located board on a green baize (results has none).
     # The baize test also gates the info-box metadata read below.
@@ -442,6 +480,8 @@ def read_rows(img_bgr: Any, atlas: Any = None, atlas_name: str | None = None) ->
             name = atlas_name
         elif source == "compass":
             name = DEFAULT_ATLAS
+        elif deck == "4colour":
+            name = INTOBRIDGE_ATLAS  # anchor board, 4-colour deck -> IntoBridge popup
         elif is_replay:
             name = REPLAY_ATLAS  # anchor board on a green baize -> RealBridge replay
         else:
@@ -452,7 +492,7 @@ def read_rows(img_bgr: Any, atlas: Any = None, atlas_name: str | None = None) ->
             name = PRINT_ZOOMED_ATLAS
         atlas = Atlas.load(_ATLAS_ROOT / name)
 
-    per_seat = _glyphs_from_boxes(gray, boxes)
+    per_seat = _glyphs_from_boxes(gray, boxes, allow_missing_suit=deck == "4colour")
     hands: dict[str, Hand | None] = dict.fromkeys(SEATS)
     for seat, rows in per_seat.items():
         ranks = {suit: "".join(atlas.match(g)[0] for g in glyphs) for suit, glyphs in zip(SUITS, rows, strict=True)}

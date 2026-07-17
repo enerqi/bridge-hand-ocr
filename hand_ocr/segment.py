@@ -154,9 +154,7 @@ def _strip_cards(bgr: Any, blob: tuple[int, int, int, int]) -> list[CardCell]:
     for cx in col_centres:
         cx0 = max(0, int(cx - half))
         cx1 = min(bw, int(cx + half))
-        cells.append(
-            CardCell(bbox=(x + cx0, y, cx1 - cx0, card_h), index_image=bgr[y : y + card_h, x + cx0 : x + cx1])
-        )
+        cells.append(CardCell(bbox=(x + cx0, y, cx1 - cx0, card_h), index_image=bgr[y : y + card_h, x + cx0 : x + cx1]))
     return cells
 
 
@@ -365,14 +363,24 @@ def read_seat_badges(bgr: Any, clusters: list[HandCluster], seat_atlas: Any) -> 
     Required for IntoBridge, which ROTATES seats (the top hand may be West), so
     screen position is not the seat -- the lettered badge beside each hand is.
     BBO needs none of this (position is the seat). The badge letter is read
-    against `seat_atlas` (an N/E/S/W exemplar set)."""
+    against `seat_atlas` (an N/E/S/W exemplar set).
+
+    The badge read is only trusted when it yields DISTINCT seats: a deal has one
+    hand per seat, so a duplicate assignment means the badge glyphs misread (some
+    renders' badges don't match the atlas). In that case the position-based seats
+    already on the clusters are the better prior, so they are left untouched."""
     badges = _seat_badge_glyphs(bgr)
     if not badges:
         return
+    read = []
     for cluster in clusters:
         cx, cy = cluster.centroid
         _, _, glyph = min(badges, key=lambda b: (b[0] - cx) ** 2 + (b[1] - cy) ** 2)
-        cluster.seat = seat_atlas.match(glyph)[0]
+        read.append(seat_atlas.match(glyph)[0])
+    if len(set(read)) != len(read):
+        return  # badges misread (duplicate seats) -> keep the position seats
+    for cluster, seat in zip(clusters, read, strict=True):
+        cluster.seat = seat
 
 
 def segment(bgr: Any) -> list[HandCluster]:

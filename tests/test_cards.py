@@ -148,3 +148,16 @@ def test_intobridge_two_hand_declarer_dummy(seat, expected):
     assert hand.to_pbn() == expected
     assert deal.hands["N"] is None
     assert deal.hands["S"] is None
+
+
+@pytest.mark.parametrize(("seat", "expected"), [("N", "J965.T987.AJ76.7"), ("S", "T8.AJ.QT98.QJT42")])
+def test_intobridge_two_hand_ns_faceup(seat, expected):
+    # N/S face-up, E/W face-down. This render's seat badges misread (all match the
+    # same letter); the duplicate-seat guard falls back to the position seats, so
+    # N stays top and S bottom instead of colliding onto one seat.
+    deal = image_to_deals(str(FIXTURES / "intobridge-2-hand-large-2.png"))[0]
+    hand = deal.hands[seat]
+    assert hand is not None, f"{seat} not read"
+    assert hand.to_pbn() == expected
+    assert deal.hands["E"] is None
+    assert deal.hands["W"] is None

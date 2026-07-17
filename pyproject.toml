@@ -5,21 +5,25 @@ description = "Bridge hand-diagram image -> PBN/LIN deal text"
 readme = "README.md"
 requires-python = "==3.14.*"
 dependencies = [
-    "docopt>=0.6.2",
-]
-
-[project.optional-dependencies]
-# heavy / platform-touchy vision stack, kept out of the base install so the
-# model+PBN spine and its tests run with just docopt. Install with:
-#   uv sync --extra vision        (geometry + template recognition)
-#   uv sync --extra vision --extra ocr   (+ PaddleOCR fallback for noisy input)
-vision = [
-    "opencv-python-headless>=4.10",
+    # docopt-ng: maintained drop-in for the abandoned `docopt` (same `docopt`
+    # import). Fixes the invalid-regex-escape SyntaxWarnings on Python 3.14.
+    "docopt-ng>=0.9",
+    # vision stack: reading a hand diagram IS the tool, so these are core, not an
+    # extra. opencv 4.12 pins numpy to a build with no cp314 wheel (source build
+    # fails on 3.14); 5.0.x's gapi shim crashes at import on 3.14 (missing
+    # gapi_wip_gst_GStreamerPipeline). 4.11.0.86 is the newest that imports cleanly.
+    "opencv-python-headless>=4.10,<4.12",
     "numpy>=2.0",
     # clipboard ingest (ImageGrab). Windows/macOS work out of the box; Linux
     # needs an xclip/wl-paste binary on PATH for grabclipboard.
     "pillow>=10.0",
 ]
+
+[project.optional-dependencies]
+# The one genuinely-optional dep: an unscheduled PaddleOCR fallback for noisy /
+# photographed input (none expected today), and its wheels lag CPython -- no
+# cp314 build yet, so it cannot be a core dependency on this Python. Install with
+#   uv sync --extra ocr
 ocr = [
     "paddleocr>=2.7",
 ]
