@@ -294,18 +294,20 @@ that info), or as LIN.
 | **NumPy** | fast numeric arrays | an OpenCV image literally *is* a NumPy array of pixel numbers; all the maths runs on it |
 | **PaddleOCR** *(optional, stub)* | a machine-learning text reader | a fallback for hypothetical noisy/photographed input — none exists, so it's unscheduled and heavy, hence optional |
 | **docopt** | command-line parser | the usage text at the top of `hand-ocr.py` *is* the parser |
-| **uv** (astral) | Python dependency + environment manager | pins Python 3.14 and the deps; `just sync` sets up the env |
+| **uv** (astral) | Python dependency + environment manager | pins Python 3.14 and the deps; `uv run` auto-syncs the env, `just sync-ocr` adds the OCR extra |
 | **ruff** (astral) | linter + formatter | one fast tool for both; 120-column style |
 | **ty** (astral) | type checker | catches type mistakes quickly |
 | **pytest** | test runner | runs the 87 tests |
 | **just** | task runner | short commands: `just test`, `just qa`, `just run …`, `just sweep` |
 
-**A design choice worth internalising:** the vision libraries (OpenCV, NumPy,
-PaddleOCR) are **optional extras**. The core — building a `Deal`, validating it,
-printing PBN — needs none of them. That keeps the tested "spine" tiny and fast:
-the whole model/format test suite runs anywhere with no heavy vision install. You
-add the extra (`uv sync --extra vision`, or just use `just sync-vision`) only when
-you actually process images.
+**A design choice worth internalising:** the vision stack (OpenCV, NumPy, Pillow)
+is **core** — reading a hand diagram *is* the tool. The one genuinely-optional
+extra is **PaddleOCR**, an unscheduled fallback for noisy/photographed input; its
+wheels lag CPython (no cp314 build yet), so it can't be a core dependency on
+Python 3.14. The core — building a `Deal`, validating it, printing PBN — needs no
+vision libraries at all, so the model/format test suite and `just demo` run
+without touching an image. You add the extra (`uv sync --extra ocr`, or just use
+`just sync-ocr`) only when you need the OCR fallback.
 
 ---
 
@@ -314,12 +316,14 @@ you actually process images.
 ```shell
 cd bridge-hand-ocr
 
-# 1. The spine, no vision libraries needed — emits a sample deal as PBN
+# 1. The spine — building/validating/printing a Deal needs no vision code
 just demo
 
-# 2. Install the vision stack, then read a real fixture image
-just sync-vision
+# 2. Read a real fixture image (opencv/numpy/pillow install as core deps)
 just run fixtures/bridgewebs-4-2.png --format pbn
+
+# 2b. Optional: add the PaddleOCR fallback (only for noisy/photographed input)
+just sync-ocr
 
 # 3. Run EVERY sample image and see one status line each (valid/total boards)
 just sweep

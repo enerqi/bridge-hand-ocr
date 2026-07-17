@@ -1,11 +1,16 @@
 # /// script
 # requires-python = "==3.14.*"
 # dependencies = [
-#     "docopt",
+#     "docopt-ng",
+#     # vision stack: reading a diagram IS the tool. Mirrors pyproject's core deps
+#     # (opencv 4.12 pins a numpy with no cp314 wheel; 5.0.x's gapi shim crashes on
+#     # import on 3.14) -- keep these in sync with pyproject.toml.
+#     "opencv-python-headless>=4.10,<4.12",
+#     "numpy>=2.0",
+#     "pillow>=10.0",
+#     # PaddleOCR fallback is optional (no cp314 wheel yet); add "paddleocr" here to
+#     # run the OCR path standalone.
 # ]
-# [tool.uv]
-# # vision extras are heavy / platform-touchy; install separately when running
-# # a real image:  uv pip install opencv-python numpy   (+ paddleocr for the OCR path)
 # ///
 """hand-ocr
 

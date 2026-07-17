@@ -65,7 +65,7 @@ program handles both.
 | Tool | Role | Why this one |
 |---|---|---|
 | **Python** | the language | batteries-included, strong image + text tooling |
-| **uv** (astral) | dependency + environment manager | `pyproject.toml` here defines deps; `just sync` sets up the env |
+| **uv** (astral) | dependency + environment manager | `pyproject.toml` here defines deps; `uv run` auto-syncs the env, `just sync-ocr` adds the OCR extra |
 | **OpenCV** (`cv2`) | image processing | the standard library for reading pixels, finding shapes, colour masks |
 | **NumPy** | fast numeric arrays | OpenCV images *are* NumPy arrays; we do array maths on them |
 | **PaddleOCR** *(optional)* | text recognition fallback | only for hypothetical noisy/photographed input — none exists or is expected; heavy, so optional and unscheduled |
@@ -75,11 +75,13 @@ program handles both.
 | **pytest** | test runner | runs the model/format tests |
 | **just** | task runner | `just test`, `just qa`, `just run …` — shared repo convention |
 
-**Design choice worth understanding:** the vision libraries (OpenCV, PaddleOCR)
-are **optional extras**. The core — building a deal, validating it, printing PBN
-— needs none of them. That keeps the tested "spine" tiny and fast, and means the
-test suite runs anywhere without installing a big vision stack. You add the extra
-only when processing real images: `uv sync --extra vision`.
+**Design choice worth understanding:** the vision stack (OpenCV, NumPy, Pillow) is
+**core** — reading a hand diagram *is* the tool. The one genuinely-optional extra
+is **PaddleOCR**, an unscheduled fallback for hypothetical noisy input, kept out
+of core because its wheels lag CPython (no cp314 build yet). The core — building a
+deal, validating it, printing PBN — needs no vision libraries at all, so the
+model/format tests and `just demo` run without touching an image. Add the extra
+only when you need the OCR fallback: `uv sync --extra ocr` (or `just sync-ocr`).
 
 ---
 
@@ -191,8 +193,9 @@ genuinely messy input.)
    compare each cut-out glyph against them, picking the best match. Because the
    source glyphs are pixel-identical from a given website, this is extremely
    accurate and needs no training. Low-resolution printouts are upscaled to a
-   fixed size first so the comparison is fair. If the best match is weak, we fall
-   back to **PaddleOCR** (the optional machine-learning reader).
+   fixed size first so the comparison is fair. A weak best-match is *designed* to
+   fall back to **PaddleOCR** (the optional machine-learning reader), but that
+   path is an unwired stub — no messy input needs it today, so nothing calls it.
 
 7. **Assemble + validate** (`model.py`). Put the recognised cards into a `Deal`
    and **sanity-check** it: each known hand must have exactly 13 cards, no card
