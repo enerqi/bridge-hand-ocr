@@ -68,8 +68,9 @@ program handles both.
 | **uv** (astral) | dependency + environment manager | `pyproject.toml` here defines deps; `uv run` auto-syncs the env, `just sync-ocr` adds the OCR extra |
 | **OpenCV** (`cv2`) | image processing | the standard library for reading pixels, finding shapes, colour masks |
 | **NumPy** | fast numeric arrays | OpenCV images *are* NumPy arrays; we do array maths on them |
+| **Pillow** (`PIL`) | image loader / clipboard grab | reads image files and grabs a screenshot from the OS clipboard (`--clipboard`) |
 | **PaddleOCR** *(optional)* | text recognition fallback | only for hypothetical noisy/photographed input — none exists or is expected; heavy, so optional and unscheduled |
-| **docopt** | command-line parsing | the usage text *is* the parser; the CLI's `--help` and its behaviour never drift |
+| **docopt-ng** | command-line parsing | the usage text *is* the parser; the CLI's `--help` and its behaviour never drift (maintained fork of `docopt`, same import) |
 | **ruff** (astral) | linter + formatter | one tool for both; 120-column style |
 | **ty** (astral) | type checker | catches type mistakes; astral's fast checker |
 | **pytest** | test runner | runs the model/format tests |

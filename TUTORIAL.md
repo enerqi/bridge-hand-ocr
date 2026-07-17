@@ -292,8 +292,9 @@ that info), or as LIN.
 | **Python** | the programming language | batteries-included, strong image + text tooling |
 | **OpenCV** (`cv2`) | the standard image-processing library | reads pixels, finds contours, builds colour masks, does template matching |
 | **NumPy** | fast numeric arrays | an OpenCV image literally *is* a NumPy array of pixel numbers; all the maths runs on it |
+| **Pillow** (`PIL`) | image loader / clipboard grab | reads image files and pulls a screenshot straight from the OS clipboard (`--clipboard`) |
 | **PaddleOCR** *(optional, stub)* | a machine-learning text reader | a fallback for hypothetical noisy/photographed input — none exists, so it's unscheduled and heavy, hence optional |
-| **docopt** | command-line parser | the usage text at the top of `hand-ocr.py` *is* the parser |
+| **docopt-ng** | command-line parser | the usage text at the top of `hand-ocr.py` *is* the parser (maintained fork of `docopt`; same `docopt` import) |
 | **uv** (astral) | Python dependency + environment manager | pins Python 3.14 and the deps; `uv run` auto-syncs the env, `just sync-ocr` adds the OCR extra |
 | **ruff** (astral) | linter + formatter | one fast tool for both; 120-column style |
 | **ty** (astral) | type checker | catches type mistakes quickly |

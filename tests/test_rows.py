@@ -173,3 +173,29 @@ def test_print_grid_frame_tiles():
     tiles = split_tiles(img)
     assert len(tiles) == 12, f"expected 12 framed boards, got {len(tiles)}"
     assert all(t.atlas == "print" for t in tiles), "frame tiles must carry the print atlas hint"
+
+
+# IntoBridge analysis popup (4-colour deck, ~500px): located by the 4-colour
+# suit-quadruple anchor, read against the intobridge atlas. Both small popups read
+# all four hands exactly; the tighter `cramped` render still fails on shattered
+# glyphs and is not pinned.
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        (
+            "intobridge-4-hand-small.png",
+            {"N": "T653.AJ8.8.87632", "E": "KQ74.753.KJ962.4", "S": "A2.QT92.74.QJT95", "W": "J98.K64.AQT53.AK"},
+        ),
+        (
+            "intobridge-4-hand-small-2.png",
+            {"N": "83.T7.AQJ875.JT9", "E": "AKQT72.K.4.Q8765", "S": "J654.AQJ82.K962.", "W": "9.96543.T3.AK432"},
+        ),
+    ],
+)
+def test_intobridge_popup_reads_exactly(name, expected):
+    deal = _read(name)
+    for seat, pbn in expected.items():
+        hand = deal.hands[seat]
+        assert hand is not None, f"{name} {seat} not read"
+        assert hand.to_pbn() == pbn, f"{name} {seat}"
+    deal.validate()

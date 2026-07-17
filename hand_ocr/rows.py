@@ -301,6 +301,12 @@ def _box_rows(box_gray: Any, allow_missing_suit: bool = False) -> list[list[Any]
     comps = [c for c in comps if c[3] >= 0.5 * ref_h]
 
     median_h = float(np.median([c[3] for c in comps]))
+    # Horizontal gap that separates a hand from adjacent bled-in content. The
+    # IntoBridge popup packs its compass cross tightly -- the central DD table sits
+    # only ~2 glyph-widths right of a hand -- so its bleed slips under the default
+    # 2.5x threshold; a tighter gap catches it there (its own inter-rank gaps are
+    # well under 1.5x). Other sources keep the looser threshold tuned for them.
+    gap_mult = 1.5 if allow_missing_suit else 2.5
 
     # Drop a detached right-hand block sharing the hand's box. On a club-print cell
     # the N/S hand sits left of that board's double-dummy trick table (and "Optimum"
@@ -313,7 +319,7 @@ def _box_rows(box_gray: Any, allow_missing_suit: bool = False) -> list[list[Any]
     x_runs: list[list[tuple[int, int, int, int, float]]] = [[by_x[0]]]
     for c in by_x[1:]:
         prev = x_runs[-1][-1]
-        if c[0] - (prev[0] + prev[2]) > median_h * 2.5:
+        if c[0] - (prev[0] + prev[2]) > median_h * gap_mult:
             x_runs.append([c])
         else:
             x_runs[-1].append(c)
@@ -337,7 +343,7 @@ def _box_rows(box_gray: Any, allow_missing_suit: bool = False) -> list[list[Any]
         runs: list[list[tuple[int, int, int, int, float]]] = [[row[0]]]
         for c in row[1:]:
             prev = runs[-1][-1]
-            if c[0] - (prev[0] + prev[2]) > median_h * 2.5:
+            if c[0] - (prev[0] + prev[2]) > median_h * gap_mult:
                 runs.append([c])
             else:
                 runs[-1].append(c)
