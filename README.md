@@ -3,8 +3,7 @@
 Bridge hand-diagram **image → parsed deal text**. Ingests a raster screenshot
 (app screenshot from BBO / IntoBridge, or a digitally rendered print-style
 diagram — every input is a clean digital PNG; photographed/scanned input is
-**not** expected) and emits **PBN** (canonical) or **LIN** (view). Complements the existing pipeline: `odin-sims` *generates* deals, the
-norn HTML UX *displays* them, `hand-ocr` *ingests* them from images.
+**not** expected) and emits **PBN** (canonical) or **LIN** (view).
 
 ## Why PBN is canonical, LIN is only a view
 
