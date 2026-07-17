@@ -13,8 +13,8 @@ detail). The code deliberately carries dense comments for the same reason.
 A bridge "deal" is four hands of 13 cards (North, East, South, West). Lots of
 websites and printouts show a deal as a **picture**: a screenshot from an app, a
 results page, or a club printout. This tool takes such a **picture** and turns it
-back into **text** a computer can use — specifically the two standard interchange
-formats used elsewhere in this repo:
+back into **text** a computer can use — specifically the two standard bridge
+interchange formats:
 
 - **PBN** (Portable Bridge Notation) — the canonical text output. Crucially it
   can say a hand is *unknown* by writing `-`. That matters because some pictures
@@ -23,9 +23,9 @@ formats used elsewhere in this repo:
   convenience *view*, and only when all four hands are known (LIN literally
   cannot represent an unknown hand — see §6).
 
-So: **image in → `PBN` (or `LIN`) out.** It complements the rest of the repo,
-where the Odin simulator *generates* deals and the web UI *displays* them; this
-tool *reads them back in* from images.
+So: **image in → `PBN` (or `LIN`) out.** It is the inverse of the usual bridge
+tools that *generate* deals and *display* them; this one *reads a deal back in*
+from an image, for any of them to consume.
 
 ---
 
@@ -64,13 +64,13 @@ program handles both.
 
 | Tool | Role | Why this one |
 |---|---|---|
-| **Python** | the language | matches the rest of the repo's tooling |
-| **uv** (astral) | dependency + environment manager | repo standard; `pyproject.toml` here defines deps |
+| **Python** | the language | batteries-included, strong image + text tooling |
+| **uv** (astral) | dependency + environment manager | `pyproject.toml` here defines deps; `just sync` sets up the env |
 | **OpenCV** (`cv2`) | image processing | the standard library for reading pixels, finding shapes, colour masks |
 | **NumPy** | fast numeric arrays | OpenCV images *are* NumPy arrays; we do array maths on them |
 | **PaddleOCR** *(optional)* | text recognition fallback | only for hypothetical noisy/photographed input — none exists or is expected; heavy, so optional and unscheduled |
-| **docopt** | command-line parsing | the usage text *is* the parser; matches sibling scripts in this repo |
-| **ruff** (astral) | linter + formatter | one tool for both; 120-column style shared with the repo |
+| **docopt** | command-line parsing | the usage text *is* the parser; the CLI's `--help` and its behaviour never drift |
+| **ruff** (astral) | linter + formatter | one tool for both; 120-column style |
 | **ty** (astral) | type checker | catches type mistakes; astral's fast checker |
 | **pytest** | test runner | runs the model/format tests |
 | **just** | task runner | `just test`, `just qa`, `just run …` — shared repo convention |

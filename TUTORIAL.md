@@ -53,8 +53,9 @@ image. That's the classic name for "turn a picture of letters into actual
 letters" (the same tech that reads a scanned document or a licence plate). Here
 the "characters" are card ranks and suit symbols.
 
-Where this fits in the wider repo: the Odin simulator **generates** deals, the
-web UI **displays** them — and hand-ocr **reads them back in** from images.
+Where this fits: other bridge tools **generate** deals and **display** them —
+hand-ocr does the opposite, **reading a deal back in** from an image so any of
+those tools can consume it.
 
 ---
 
@@ -288,12 +289,12 @@ that info), or as LIN.
 
 | Tool | What it is | Why it's here |
 |---|---|---|
-| **Python** | the programming language | matches the rest of this repo |
+| **Python** | the programming language | batteries-included, strong image + text tooling |
 | **OpenCV** (`cv2`) | the standard image-processing library | reads pixels, finds contours, builds colour masks, does template matching |
 | **NumPy** | fast numeric arrays | an OpenCV image literally *is* a NumPy array of pixel numbers; all the maths runs on it |
 | **PaddleOCR** *(optional, stub)* | a machine-learning text reader | a fallback for hypothetical noisy/photographed input — none exists, so it's unscheduled and heavy, hence optional |
 | **docopt** | command-line parser | the usage text at the top of `hand-ocr.py` *is* the parser |
-| **uv** (astral) | Python dependency + environment manager | the repo standard; pins Python 3.14 and the deps |
+| **uv** (astral) | Python dependency + environment manager | pins Python 3.14 and the deps; `just sync` sets up the env |
 | **ruff** (astral) | linter + formatter | one fast tool for both; 120-column style |
 | **ty** (astral) | type checker | catches type mistakes quickly |
 | **pytest** | test runner | runs the 87 tests |
@@ -311,7 +312,7 @@ you actually process images.
 ## Part 6 — Try it yourself
 
 ```shell
-cd hand-ocr
+cd bridge-hand-ocr
 
 # 1. The spine, no vision libraries needed — emits a sample deal as PBN
 just demo

@@ -11,8 +11,8 @@ diagram — every input is a clean digital PNG; photographed/scanned input is
   declarer + dummy case (E/W unknown). Canonical output.
 - **LIN `md|`** *cannot* mark a hand unknown — omitted hands are silently
   auto-filled from the remaining cards, which fabricates E/W. So LIN is emitted
-  only when **all four hands are known**, purely to feed the BBO handviewer
-  iframe used in `deal-simulations/tcl-sims`. `to_lin` raises on a partial deal.
+  only when **all four hands are known**, purely as a convenience view for a BBO
+  handviewer iframe. `to_lin` raises on a partial deal.
 
 ## Design: two recognition modes + multi-deal
 
@@ -167,7 +167,7 @@ Own `pyproject.toml` (astral **uv**, Python 3.14) + `justfile`. The vision stack
 is an optional extra, so the tested spine stays light.
 
 ```shell
-cd hand-ocr
+cd bridge-hand-ocr
 just sync            # base deps + dev tools (docopt, pytest, ruff, ty)
 just sync-vision     # + opencv/numpy for the image pipeline
 just test            # model/PBN/LIN/validation tests (no vision deps)
